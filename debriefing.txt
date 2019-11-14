@@ -1,0 +1,8 @@
+How many hours did you spend on this assignment?
+1
+
+Would you rate it as easy, moderate, or difficult?
+Easy
+
+How deeply do you feel you understand the material it covers (0%-100%)?
+99%
