@@ -36,7 +36,7 @@ def main(p4info_file_path, bmv2_file_path, topo_file_path):
 
     try:
         # Establish a P4 Runtime connection to each switch
-        for switch in ["s1", "s2", "s3"]:
+        for switch in ["s1", "s2", "s3", "s4"]:
             switch_id = int(switch[1:])
             bmv2_switch = p4runtime_lib.bmv2.Bmv2SwitchConnection(
                 name=switch,
@@ -52,17 +52,37 @@ def main(p4info_file_path, bmv2_file_path, topo_file_path):
             switches[switch] = bmv2_switch
             
         # TODO
-	addForwardingRule("s1", "10.0.1.11", 1)
-	addForwardingRule("s1", "10.0.2.22", 2)
-	addForwardingRule("s1", "10.0.3.33", 3)
+	addForwardingRule("s1", "10.0.1.1", 1)
+	addForwardingRule("s1", "10.0.1.2", 2)
+	addForwardingRule("s1", "10.0.1.3", 3)
+	addForwardingRule("s1", "10.0.1.4", 4)
+	addForwardingRule("s1", "10.0.1.5", 4)
+	addForwardingRule("s1", "10.0.1.6", 4)
+	addForwardingRule("s1", "10.0.1.7", 4)
 
-	addForwardingRule("s2", "10.0.2.22", 1)
-	addForwardingRule("s2", "10.0.1.11", 2)
-	addForwardingRule("s2", "10.0.3.33", 3)
+	addForwardingRule("s2", "10.0.1.1", 2)
+	addForwardingRule("s2", "10.0.1.2", 1)
+	addForwardingRule("s2", "10.0.1.3", 3)
+	addForwardingRule("s2", "10.0.1.4", 4)
+	addForwardingRule("s2", "10.0.1.5", 4)
+	addForwardingRule("s2", "10.0.1.6", 4)
+	addForwardingRule("s2", "10.0.1.7", 4)
 
-	addForwardingRule("s3", "10.0.3.33", 1)
-	addForwardingRule("s3", "10.0.1.11", 2)
-	addForwardingRule("s3", "10.0.2.22", 3)
+	addForwardingRule("s3", "10.0.1.1", 2)
+	addForwardingRule("s3", "10.0.1.2", 3)
+	addForwardingRule("s3", "10.0.1.3", 1)
+	addForwardingRule("s3", "10.0.1.4", 4)
+	addForwardingRule("s3", "10.0.1.5", 4)
+	addForwardingRule("s3", "10.0.1.6", 4)
+	addForwardingRule("s3", "10.0.1.7", 4)
+
+	addForwardingRule("s4", "10.0.1.1", 2)
+	addForwardingRule("s4", "10.0.1.2", 3)
+	addForwardingRule("s4", "10.0.1.3", 4)
+	addForwardingRule("s4", "10.0.1.4", 1)
+	addForwardingRule("s4", "10.0.1.5", 5)
+	addForwardingRule("s4", "10.0.1.6", 6)
+	addForwardingRule("s4", "10.0.1.7", 7)
 
         
     except KeyboardInterrupt:
