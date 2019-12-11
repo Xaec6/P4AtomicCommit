@@ -15,18 +15,22 @@ const bit<1> VOTE_ABORT = 0x0;
 const bit<1> VOTE_COMMIT = 0x1;
 
 // Protocol Req/resp
-const bit<1> ATCO_REQ = 0x0;
-const bit<1> ATCO_RESP = 0x1;
+const bit<2> ATCO_CLIENT_REQ = 0x0;
+const bit<2> ATCO_PARTICIPANT_REQ = 0x1;
+const bit<2> ATCO_PARTICIPANT_RESP = 0x2;
+const bit<2> ATCO_CLIENT_RESP = 0x3;
 
 // Atco msg_types
 // Client sends a message to a coordinator to either get or set something
-const bit<2> MSG_REQ = 0x0;
+const bit<3> MSG_REQ = 0x0;
 // Coordinator sends request to participant, asking whether or not to commit or abort transaction
-const bit<2> MSG_VOTE_REQ = 0x1;
+const bit<3> MSG_VOTE_REQ = 0x1;
 // Participant response (with either commit or abort) to MSG_VOTE_REQ
-const bit<2> MSG_VOTE = 0x2;
+const bit<3> MSG_VOTE = 0x2;
 // Coordinator tells all participants the final decision (either commit or abort)
-const bit<2> MSG_DO = 0x3;
+const bit<3> MSG_DO = 0x3;
+// Tell switch to not run 2PC algorithm to insert/"set"
+const bit<3> MSG_IGNORE = 0x4;
 
 /*************************************************************************
 ********************* H E A D E R S  *********************************
@@ -54,10 +58,10 @@ header atco_t {
     // Either COMMIT or ABORT
     bit<1>  vote;
     // Either REQ or RESP
-    bit<1>  resp;
+    bit<2>  resp;
     // Various 2PC message types
-    bit<2>  msg_type;
-    bit<11>  key;
+    bit<3>  msg_type;
+    bit<9>  key;
 }
 
 struct metadata {
@@ -125,7 +129,7 @@ control MyIngress(inout headers hdr,
         standard_metadata.egress_spec = port;
     }
 
-    action multicast(bit<16> mc, bit<2> new_msg_type) {
+    action multicast(bit<16> mc, bit<3> new_msg_type) {
         hdr.atco.msg_type = new_msg_type;
         standard_metadata.mcast_grp = mc;
     }
@@ -176,14 +180,21 @@ control MyIngress(inout headers hdr,
             decision = 0;
             standard_metadata.egress_spec = standard_metadata.ingress_port;
             if(hdr.atco.req_type == REQ_GET){
-                if (hdr.atco.resp == 0) {
-                    forward(1);
-                }
-                else {
-                    forward(5);
+                if (hdr.atco.resp == ATCO_CLIENT_REQ) {
+                  forward(2);
+                  hdr.atco.resp = ATCO_PARTICIPANT_REQ;
+                } else if (hdr.atco.resp == ATCO_PARTICIPANT_REQ) {
+                  forward(1);
+                  hdr.atco.resp = ATCO_PARTICIPANT_RESP;
+                } else if (hdr.atco.resp == ATCO_PARTICIPANT_RESP) {
+                  forward(5);
+                  hdr.atco.resp = ATCO_CLIENT_RESP;
+                } else if (hdr.atco.resp == ATCO_CLIENT_RESP) {
+                  forward(1);
+                } else {
+                  drop();
                 }
             }
-
             else {
                 atco.apply();
                 if (hdr.atco.msg_type == MSG_VOTE && hdr.atco.vote == VOTE_COMMIT) {
