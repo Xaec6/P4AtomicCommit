@@ -54,7 +54,7 @@ def main(p4info_file_path, bmv2_file_path, topo_file_path):
                 name=switch,
                 address="127.0.0.1:%d" % (50050 + switch_id),
                 device_id=(switch_id - 1),
-                proto_dump_file="logs/%s-p4runtime-requests.txt" % switch)            
+                proto_dump_file="logs/%s-p4runtime-requests.txt" % switch)
             bmv2_switch.MasterArbitrationUpdate()
             print "Established as controller for %s" % bmv2_switch.name
 
@@ -78,7 +78,6 @@ def main(p4info_file_path, bmv2_file_path, topo_file_path):
         addVoteRule("s3", True)
         addVoteRule("s4", True)
 
-        
     except KeyboardInterrupt:
         print " Shutting down."
     except grpc.RpcError as e:
