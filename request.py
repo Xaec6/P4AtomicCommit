@@ -27,8 +27,9 @@ class AtomicCommit(Packet):
    fields_desc = [ BitField("request_number", 0, 16),
                    BitField("request_type", 0, 1),
                    BitField("vote",  0, 1),
+                   BitField("resp",  0, 1),
                    BitField("state", 0, 2),
-                   BitField("padding", 0, 4)]
+                   BitField("key", 0, 11),]
 
 bind_layers(Ether, AtomicCommit, type=0x1313)
 
@@ -54,5 +55,5 @@ def main():
     pkt.show2()
     sendp(pkt, iface=iface, verbose=False)
 
-if __name__ == '__main__':
+if __name__ == '_main_':
     main()

@@ -14,6 +14,10 @@ const bit<1> REQ_SET = 0x1;
 const bit<1> VOTE_ABORT = 0x0;
 const bit<1> VOTE_COMMIT = 0x1;
 
+// Protocol Req/resp
+const bit<1> ATCO_REQ = 0x0;
+const bit<1> ATCO_RESP = 0x1;
+
 // Atco msg_types
 // Client sends a message to a coordinator to either get or set something
 const bit<2> MSG_REQ = 0x0;
@@ -25,7 +29,7 @@ const bit<2> MSG_VOTE = 0x2;
 const bit<2> MSG_DO = 0x3;
 
 /*************************************************************************
-*********************** H E A D E R S  ***********************************
+********************* H E A D E R S  *********************************
 *************************************************************************/
 
 typedef bit<9>  egressSpec_t;
@@ -47,11 +51,13 @@ header atco_t {
     bit<16> req_n;
     // Either a GET or SET request
     bit<1>  req_type;
-    // Either COMMIT or ABORRT
+    // Either COMMIT or ABORT
     bit<1>  vote;
+    // Either REQ or RESP
+    bit<1>  resp;
     // Various 2PC message types
     bit<2>  msg_type;
-    bit<4>  decision_info;
+    bit<11>  key;
 }
 
 struct metadata {
@@ -64,7 +70,7 @@ struct headers {
 }
 
 /*************************************************************************
-*********************** P A R S E R  ***********************************
+********************* P A R S E R  *********************************
 *************************************************************************/
 
 parser MyParser(packet_in packet,
@@ -92,7 +98,7 @@ parser MyParser(packet_in packet,
 }
 
 /*************************************************************************
-************   C H E C K S U M    V E R I F I C A T I O N   *************
+**********   C H E C K S U M    V E R I F I C A T I O N   ***********
 *************************************************************************/
 
 control MyVerifyChecksum(inout headers hdr, inout metadata meta) {   
@@ -101,7 +107,7 @@ control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
 
 
 /*************************************************************************
-**************  I N G R E S S   P R O C E S S I N G   *******************
+************  I N G R E S S   P R O C E S S I N G   *****************
 *************************************************************************/
 
 control MyIngress(inout headers hdr,
@@ -137,10 +143,7 @@ control MyIngress(inout headers hdr,
         temp = temp + 1;
         yes_votes.write((bit<32>)(hdr.atco.req_n % MAX_CON), temp);
         if(temp == NUM_PARTICIPANTS) {
-        	decision = 1;
-        }
-        else {
-        	decision = 0;
+          decision = 1;
         }
     }
 
@@ -156,7 +159,7 @@ control MyIngress(inout headers hdr,
     table atco {
         key = {
             hdr.atco.msg_type: exact;
-            hdr.atco.decision_info: exact;
+            hdr.atco.key: exact;
         }
         actions = {
             forward;
@@ -170,8 +173,15 @@ control MyIngress(inout headers hdr,
 
     apply {
         if (hdr.atco.isValid()) {
+            decision = 0;
+            standard_metadata.egress_spec = standard_metadata.ingress_port;
             if(hdr.atco.req_type == REQ_GET){
-                forward(1);
+                if (hdr.atco.resp == 0) {
+                    forward(1);
+                }
+                else {
+                    forward(5);
+                }
             }
 
             else {
@@ -195,7 +205,7 @@ control MyIngress(inout headers hdr,
 }
 
 /*************************************************************************
-****************  E G R E S S   P R O C E S S I N G   *******************
+**************  E G R E S S   P R O C E S S I N G   *****************
 *************************************************************************/
 
 control MyEgress(inout headers hdr,
@@ -205,7 +215,7 @@ control MyEgress(inout headers hdr,
 }
 
 /*************************************************************************
-*************   C H E C K S U M    C O M P U T A T I O N   **************
+***********   C H E C K S U M    C O M P U T A T I O N   ************
 *************************************************************************/
 
 control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
@@ -214,7 +224,7 @@ control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
 }
 
 /*************************************************************************
-***********************  D E P A R S E R  *******************************
+*********************  D E P A R S E R  *****************************
 *************************************************************************/
 
 control MyDeparser(packet_out packet, in headers hdr) {
@@ -225,7 +235,7 @@ control MyDeparser(packet_out packet, in headers hdr) {
 }
 
 /*************************************************************************
-***********************  S W I T C H  *******************************
+*********************  S W I T C H  *****************************
 *************************************************************************/
 
 V1Switch(
