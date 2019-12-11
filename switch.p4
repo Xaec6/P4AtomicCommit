@@ -13,9 +13,13 @@ const bit<1> VOTE_ABORT = 0x0;
 const bit<1> VOTE_COMMIT = 0x1;
 
 // Atco msg_types
+// Client sends a message to a coordinator to either get or set something
 const bit<2> MSG_REQ = 0x0;
+// Coordinator sends request to participant, asking whether or not to commit or abort transaction
 const bit<2> MSG_VOTE_REQ = 0x1;
+// Participant response (with either commit or abort) to MSG_VOTE_REQ
 const bit<2> MSG_VOTE = 0x2;
+// Coordinator tells all participants the final decision (either commit or abort)
 const bit<2> MSG_DO = 0x3;
 
 /*************************************************************************
@@ -37,9 +41,13 @@ header myTunnel_t {
 }
 
 header atco_t {
+    // Request Number
     bit<16> req_n;
+    // Either a GET or SET request
     bit<1>  req_type;
+    // Either COMMIT or ABORRT
     bit<1>  vote;
+    // Various 2PC message types
     bit<2>  msg_type;
     bit<4>  padding;
 }
