@@ -3,6 +3,8 @@
 #include <v1model.p4>
 
 const bit<16> TYPE_ATCO = 0x1313;
+const bit<16> MAX_CON = 0x1; //maximum concurrent transactions
+const bit<16> NUM_PARTICIPANTS = 0x3;
 
 // Atco req_types
 const bit<1> REQ_GET = 0x0;
@@ -49,7 +51,7 @@ header atco_t {
     bit<1>  vote;
     // Various 2PC message types
     bit<2>  msg_type;
-    bit<4>  padding;
+    bit<4>  decision_info;
 }
 
 struct metadata {
@@ -106,28 +108,39 @@ control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
 
-    /* Index 0 of this register is used to keep track of request numbers for
+    /* This register is used to keep track of request numbers for
      * load balancing/flow control.
-     * Index 1 of this register is used to keep track of request numbers for
-     * atomic commits.
      */
-    register<bit<16>>(2) c;
+    register<bit<16>>((bit<32>)MAX_CON) yes_votes;
+    bit<1> decision;
 
-    /* This action votes to abort the transaction
-     */
-    action vote_abort() {
-        if (hdr.atco.isValid() && hdr.atco.msg_type == MSG_VOTE_REQ) {
-            hdr.atco.msg_type = MSG_VOTE;
-            hdr.atco.vote = VOTE_ABORT;
-        }
+
+    action forward(egressSpec_t port) {
+        standard_metadata.egress_spec = port;
     }
 
-    /* This action votes to commit the transaction
+    action multicast(bit<16> mc, bit<2> new_msg_type) {
+        hdr.atco.msg_type = new_msg_type;
+        standard_metadata.mcast_grp = mc;
+    }
+
+    /* This action votes to either commit or abort the transaction
      */
-    action vote_commit() {
-        if (hdr.atco.isValid() && hdr.atco.msg_type == MSG_VOTE_REQ) {
-            hdr.atco.msg_type = MSG_VOTE;
-            hdr.atco.vote = VOTE_COMMIT;
+    action vote(bit<1> v) {
+        hdr.atco.msg_type = MSG_VOTE;
+        hdr.atco.vote = v;
+    }
+
+    action decide() {
+        bit<16> temp;
+        yes_votes.read(temp, (bit<32>)(hdr.atco.req_n % MAX_CON));
+        temp = temp + 1;
+        yes_votes.write((bit<32>)(hdr.atco.req_n % MAX_CON), temp);
+        if(temp == NUM_PARTICIPANTS) {
+        	decision = 1;
+        }
+        else {
+        	decision = 0;
         }
     }
 
@@ -140,11 +153,16 @@ control MyIngress(inout headers hdr,
     /* This table allows us to use the control plane to specify if a switch
      * will vote to commit or abort a transaction
      */
-    table atco_vote {
-        key = { }
+    table atco {
+        key = {
+            hdr.atco.msg_type: exact;
+            hdr.atco.decision_info: exact;
+        }
         actions = {
-            vote_commit;
-            vote_abort;
+            forward;
+            multicast;
+            vote;
+            decide;
             drop;
         }
         default_action = drop();
@@ -152,45 +170,21 @@ control MyIngress(inout headers hdr,
 
     apply {
         if (hdr.atco.isValid()) {
-            /* For simplicity, we assume that only coordinators will receive
-             * MSG_REQ and MSG_VOTE whereas only participants will receive
-             * MSG_VOTE_REQ and MSG_DO.
-             */
+            if(hdr.atco.req_type == REQ_GET){
+                forward(1);
+            }
 
-            if(hdr.atco.msg_type == MSG_REQ){
-                // TODO: whatever this is
-                bit<16> r;
-                c.read(r, 0);
-                c.write(0, r + 1);
-                if (hdr.atco.req_n == 0){
-                    if (hdr.atco.req_type == 0){
-                        bit<16> port;
-                        bit<4> tw = 2;
-                        bit<4> fr = 4;
-                        hash(port, HashAlgorithm.identity, tw, {r}, fr);
-                        hdr.atco.req_n = r;
-                        standard_metadata.egress_spec = (egressSpec_t)port;
+            else {
+                atco.apply();
+                if (hdr.atco.msg_type == MSG_VOTE && hdr.atco.vote == VOTE_COMMIT) {
+                    if (decision == 1) {
+                        multicast(2, MSG_DO);
                     }
+
                     else {
-                        c.read(r, 1);
-                        c.write(1, r + 1);
+                        drop();
                     }
                 }
-            }
-
-            else if(hdr.atco.msg_type == MSG_VOTE_REQ){
-                atco_vote.apply();
-                // Forward the packet to both the database and back to the coordinator
-                standard_metadata.mcast_grp = 1;
-            }
-
-            else if(hdr.atco.msg_type == MSG_VOTE){
-                // TODO: tally up the vote
-            }
-
-            else if(hdr.atco.msg_type == MSG_DO){
-                // Forward the packet to the database to commit the transaction
-                standard_metadata.egress_spec = 1;
             }
         }
 
@@ -198,8 +192,6 @@ control MyIngress(inout headers hdr,
             drop();
         }
     }
-
-
 }
 
 /*************************************************************************
