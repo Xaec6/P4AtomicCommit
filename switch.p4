@@ -188,11 +188,13 @@ control MyIngress(inout headers hdr,
                 atco.apply();
                 if (hdr.atco.msg_type == MSG_VOTE && hdr.atco.vote == VOTE_COMMIT) {
                     if (decision == 1) {
-                        multicast(2, MSG_DO);
+                        bit<16> temp = 0;
+                        yes_votes.write((bit<32>)(hdr.atco.req_n % MAX_CON), temp);
+                        multicast(1, MSG_DO);
                     }
 
                     else {
-                        drop();
+                        //drop();
                     }
                 }
             }

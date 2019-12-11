@@ -29,15 +29,17 @@ class AtomicCommit(Packet):
                    BitField("vote",  0, 1),
                    BitField("resp",  0, 1),
                    BitField("state", 0, 2),
-                   BitField("key", 0, 11),]
+                   BitField("key", 1, 11),]
 
 bind_layers(Ether, AtomicCommit, type=0x1313)
 
 def main():
-        
     iface = get_if()
-    addr = socket.gethostbyname("10.0.0.4")
+    addr = socket.gethostbyname("10.0.1.4")
     typ = -1;
+    if len(sys.argv) < 3:
+        print "Invalid request. Usage: %s <get|set> <data>" % sys.argv[0]
+        exit(1)
     if sys.argv[1] == "get":
         typ = 0
     elif sys.argv[1] == "set":
@@ -55,5 +57,5 @@ def main():
     pkt.show2()
     sendp(pkt, iface=iface, verbose=False)
 
-if __name__ == '_main_':
+if __name__ == '__main__':
     main()

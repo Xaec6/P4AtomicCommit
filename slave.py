@@ -25,12 +25,15 @@ def handle_pkt(pkt):
     print "got a packet"
     pkt.show2()
     sys.stdout.flush()
-    if (pkt[ATOMICCOMMIT].request_type == 0):
-      pkt[ATOMICCOMMIT].resp = 1
-      pkt = pkt / vals[pkt[ATOMICCOMMIT].key]
-      sendp(pkt, iface=iface, verbose=False)
+    if hasattr(pkt, "type") and pkt.type == 0x1313:
+      if pkt.request_type == 0:
+          pkt[ATOMICCOMMIT].resp = 1
+          pkt = pkt / vals[pkt[ATOMICCOMMIT].key]
+          sendp(pkt, iface=iface, verbose=False)
+      else:
+          vals[pkt.key] = pkt[Raw].load
     else:
-      vals[pkt[ATOMICCOMMIT].key] = pkt[Raw]
+        print "packet was not an AtomicCommit packet. Ignoring..."
 
 
 class AtomicCommit(Packet):
@@ -51,5 +54,5 @@ def main():
     sniff(iface = iface,
           prn = lambda x: handle_pkt(x))
 
-if __name__ == '_main_':
+if __name__ == '__main__':
     main()
