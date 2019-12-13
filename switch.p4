@@ -2,7 +2,21 @@
 #include <core.p4>
 #include <v1model.p4>
 
-const bit<16> TYPE_ARCO = 0x1313;
+const bit<16> TYPE_ATCO = 0x1313;
+
+// Atco req_types
+const bit<1> REQ_GET = 0x0;
+const bit<1> REQ_SET = 0x1;
+
+// Atco votes
+const bit<1> VOTE_ABORT = 0x0;
+const bit<1> VOTE_COMMIT = 0x1;
+
+// Atco msg_types
+const bit<2> MSG_REQ = 0x0;
+const bit<2> MSG_VOTE_REQ = 0x1;
+const bit<2> MSG_VOTE = 0x2;
+const bit<2> MSG_DO = 0x3;
 
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
@@ -83,9 +97,49 @@ control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
 control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
+
+    /* Index 0 of this register is used to keep track of request numbers for
+     * load balancing/flow control.
+     * Index 1 of this register is used to keep track of request numbers for
+     * atomic commits.
+     */
     register<bit<16>>(2) c;
+
+    /* This action votes to abort the transaction
+     */
+    action vote_abort() {
+        if (hdr.atco.isValid() && hdr.atco.msg_type == MSG_VOTE_REQ) {
+            hdr.atco.msg_type = MSG_VOTE;
+            hdr.atco.vote = VOTE_ABORT;
+        }
+    }
+
+    /* This action votes to commit the transaction
+     */
+    action vote_commit() {
+        if (hdr.atco.isValid() && hdr.atco.msg_type == MSG_VOTE_REQ) {
+            hdr.atco.msg_type = MSG_VOTE;
+            hdr.atco.vote = VOTE_COMMIT;
+        }
+    }
+
+    /* This action drops the packet
+     */
     action drop() {
         mark_to_drop(standard_metadata);
+    }
+
+    /* This table allows us to use the control plane to specify if a switch
+     * will vote to commit or abort a transaction
+     */
+    table atco_vote {
+        key = { }
+        actions = {
+            vote_commit;
+            vote_abort;
+            drop;
+        }
+        default_action = drop();
     }
 
     apply {
@@ -111,9 +165,11 @@ control MyIngress(inout headers hdr,
                 standard_metadata.egress_spec = 1;
             }
         } else {
-	    drop();
-	   }
+            drop();
+        }
     }
+
+
 }
 
 /*************************************************************************
