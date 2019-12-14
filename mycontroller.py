@@ -29,6 +29,18 @@ def addMulticastGroup(switch, mc_group_id, ports):
     bmv2_switch.WriteMulticastGroupEntry(mc_entry)
     print "Installed multicast group on %s with ports %d" % (switch, 0)
 
+def addVoteRule(switch, commit):
+    # Helper function to install voting rules on switches
+    table_entry = p4info_helper.buildTableEntry(
+        table_name="MyIngress.atco_vote",
+        match_fields={},
+        action_name="MyIngress.vote_commit" if commit else "MyIngress.vote_abort",
+        action_params={}
+        )
+    bmv2_switch = switches[switch]
+    bmv2_switch.WriteTableEntry(table_entry)
+    print "Installed rule on %s to vote %s" % (switch, "commit" if commit else "abort")
+
 def main(p4info_file_path, bmv2_file_path, topo_file_path):
     # Instantiate a P4Runtime helper from the p4info file
     global p4info_helper
@@ -59,6 +71,13 @@ def main(p4info_file_path, bmv2_file_path, topo_file_path):
 
         # TODO: Set up multicast groups for each switch
         addMulticastGroup("s4", 1, list([2, 3, 4]))
+
+        # TODO: Add rules to determine how participants vote
+        addVoteRule("s1", True)
+        addVoteRule("s2", True)
+        addVoteRule("s3", True)
+        addVoteRule("s4", True)
+
         
     except KeyboardInterrupt:
         print " Shutting down."
