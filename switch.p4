@@ -69,7 +69,7 @@ parser MyParser(packet_in packet,
     state parse_ethernet {
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
-            TYPE_ARCO: parse_atco;
+            TYPE_ATCO: parse_atco;
             default: accept;
         }
     }
