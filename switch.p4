@@ -144,6 +144,8 @@ control MyIngress(inout headers hdr,
 
     apply {
         if (hdr.atco.isValid()) {
+            atco_vote.apply();
+
             bit<16> r;
             c.read(r, 0);
             c.write(0, r + 1);

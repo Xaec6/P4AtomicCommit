@@ -14,20 +14,20 @@ import p4runtime_lib.helper
 switches = {}
 p4info_helper = None
 
-def addForwardingRule(switch, dst_ip_addr, dst_port):
-    # Helper function to install forwarding rules
-    table_entry = p4info_helper.buildTableEntry(
-        table_name="MyIngress.ipv4_lpm",
-        match_fields={
-            "hdr.ipv4.dstAddr": (dst_ip_addr, 32)
-        },
-        action_name="MyIngress.ipv4_forward",
-        action_params={
-            "port": dst_port,
+def addMulticastGroup(switch, mc_group_id, ports):
+    reps = list()
+    for p in ports:
+        reps.append({
+            "egress_port" : p,
+            "instance" : 1
         })
+    mc_entry = p4info_helper.buildMulticastGroupEntry(
+        multicast_group_id=mc_group_id,
+        replicas=reps
+        )
     bmv2_switch = switches[switch]
-    bmv2_switch.WriteTableEntry(table_entry)
-    print "Installed rule on %s to forward to %s via port %d" % (switch, dst_ip_addr, dst_port)
+    bmv2_switch.WriteMulticastGroupEntry(mc_entry)
+    print "Installed multicast group on %s with ports %d" % (switch, 0)
 
 def main(p4info_file_path, bmv2_file_path, topo_file_path):
     # Instantiate a P4Runtime helper from the p4info file
@@ -50,40 +50,15 @@ def main(p4info_file_path, bmv2_file_path, topo_file_path):
                                                     bmv2_json_file_path=bmv2_file_path)
             print "Installed P4 Program using SetForwardingPipelineConfig on %s" % bmv2_switch.name
             switches[switch] = bmv2_switch
-            
-        # TODO
-	addForwardingRule("s1", "10.0.1.1", 1)
-	addForwardingRule("s1", "10.0.1.2", 2)
-	addForwardingRule("s1", "10.0.1.3", 3)
-	addForwardingRule("s1", "10.0.1.4", 4)
-	addForwardingRule("s1", "10.0.1.5", 4)
-	addForwardingRule("s1", "10.0.1.6", 4)
-	addForwardingRule("s1", "10.0.1.7", 4)
 
-	addForwardingRule("s2", "10.0.1.1", 2)
-	addForwardingRule("s2", "10.0.1.2", 1)
-	addForwardingRule("s2", "10.0.1.3", 3)
-	addForwardingRule("s2", "10.0.1.4", 4)
-	addForwardingRule("s2", "10.0.1.5", 4)
-	addForwardingRule("s2", "10.0.1.6", 4)
-	addForwardingRule("s2", "10.0.1.7", 4)
+        # NOTE: When using simple_switch_CLI to change multicast groups, use the following thrift ports:
+        # s1 = 9090
+        # s2 = 9091
+        # s3 = 9092
+        # s4 = 9093
 
-	addForwardingRule("s3", "10.0.1.1", 2)
-	addForwardingRule("s3", "10.0.1.2", 3)
-	addForwardingRule("s3", "10.0.1.3", 1)
-	addForwardingRule("s3", "10.0.1.4", 4)
-	addForwardingRule("s3", "10.0.1.5", 4)
-	addForwardingRule("s3", "10.0.1.6", 4)
-	addForwardingRule("s3", "10.0.1.7", 4)
-
-	addForwardingRule("s4", "10.0.1.1", 2)
-	addForwardingRule("s4", "10.0.1.2", 3)
-	addForwardingRule("s4", "10.0.1.3", 4)
-	addForwardingRule("s4", "10.0.1.4", 1)
-	addForwardingRule("s4", "10.0.1.5", 5)
-	addForwardingRule("s4", "10.0.1.6", 6)
-	addForwardingRule("s4", "10.0.1.7", 7)
-
+        # TODO: Set up multicast groups for each switch
+        addMulticastGroup("s4", 1, list([2, 3, 4]))
         
     except KeyboardInterrupt:
         print " Shutting down."
@@ -122,4 +97,3 @@ if __name__ == '__main__':
         print "\nTopology file not found: %s" % args.topo
         parser.exit(1)
     main(args.p4info, args.bmv2_json, args.topo)
-
