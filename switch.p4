@@ -144,29 +144,49 @@ control MyIngress(inout headers hdr,
 
     apply {
         if (hdr.atco.isValid()) {
-            atco_vote.apply();
+            /* For simplicity, we assume that only coordinators will receive
+             * MSG_REQ and MSG_VOTE whereas only participants will receive
+             * MSG_VOTE_REQ and MSG_DO.
+             */
 
-            bit<16> r;
-            c.read(r, 0);
-            c.write(0, r + 1);
-            if (hdr.atco.req_n == 0){
-                if (hdr.atco.req_type == 0){
-                    bit<16> port;
-                    bit<4> tw = 2;
-                    bit<4> fr = 4;
-                    hash(port, HashAlgorithm.identity, tw, {r}, fr);
-                    hdr.atco.req_n = r;
-                    standard_metadata.egress_spec = (egressSpec_t)port;
-                }
-                else {
-                    c.read(r, 1);
-                    c.write(1, r + 1);
+            if(hdr.atco.msg_type == MSG_REQ){
+                // TODO: whatever this is
+                bit<16> r;
+                c.read(r, 0);
+                c.write(0, r + 1);
+                if (hdr.atco.req_n == 0){
+                    if (hdr.atco.req_type == 0){
+                        bit<16> port;
+                        bit<4> tw = 2;
+                        bit<4> fr = 4;
+                        hash(port, HashAlgorithm.identity, tw, {r}, fr);
+                        hdr.atco.req_n = r;
+                        standard_metadata.egress_spec = (egressSpec_t)port;
+                    }
+                    else {
+                        c.read(r, 1);
+                        c.write(1, r + 1);
+                    }
                 }
             }
-            else {
+
+            else if(hdr.atco.msg_type == MSG_VOTE_REQ){
+                atco_vote.apply();
+                // Forward the packet to both the database and back to the coordinator
+                standard_metadata.mcast_grp = 1;
+            }
+
+            else if(hdr.atco.msg_type == MSG_VOTE){
+                // TODO: tally up the vote
+            }
+
+            else if(hdr.atco.msg_type == MSG_DO){
+                // Forward the packet to the database to commit the transaction
                 standard_metadata.egress_spec = 1;
             }
-        } else {
+        }
+
+        else {
             drop();
         }
     }
