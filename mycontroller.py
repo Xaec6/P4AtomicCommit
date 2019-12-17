@@ -218,6 +218,7 @@ def main(p4info_file_path, bmv2_file_path, topo_file_path):
         # TODO: Set up multicast groups for each switch
         # Adds multicast group from coordinator to all participants
         addMulticastGroup("s4", 1, list([2, 3, 4]))
+        addMulticastGroup("s4", 2, list([1, 2, 3, 4]))
 
         # TODO: Add rules to determine how participants vote
         # addVoteRule("s1", True)

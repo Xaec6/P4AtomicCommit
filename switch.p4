@@ -201,7 +201,7 @@ control MyIngress(inout headers hdr,
                     if (decision == 1) {
                         bit<16> temp = 0;
                         yes_votes.write((bit<32>)(hdr.atco.req_n % MAX_CON), temp);
-                        multicast(1, MSG_DO);
+                        multicast(2, MSG_DO);
                     }
 
                     else {
