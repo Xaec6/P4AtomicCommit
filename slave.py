@@ -26,12 +26,13 @@ def handle_pkt(pkt, iface):
     print "got a packet"
     pkt.show2()
     sys.stdout.flush()
-    if hasattr(pkt, "type") and pkt.type == 0x1313:
+    if hasattr(pkt, "type") and pkt.type == 0x1313 and pkt.vote == 0 :
       if pkt.request_type == 0:
           if pkt.key in vals:
               pkt = pkt / Raw(vals[pkt.key])
           else:
               pkt = pkt / Raw("Error: Could not find key %s" % pkt.key)
+          pkt.vote = 1
           sendp(pkt, iface=iface, verbose=False)
       else:
           vals[pkt.key] = pkt[Raw].load
