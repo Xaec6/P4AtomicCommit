@@ -5,7 +5,7 @@ import socket
 import random
 import struct
 
-from scapy.all import sniff, sendp, send, get_if_list, get_if_hwaddr, bind_layers
+from scapy.all import sniff, sendp, srp1, send, get_if_list, get_if_hwaddr, bind_layers
 from scapy.all import Packet, Raw
 from scapy.all import Ether, IP, UDP
 from scapy.fields import *
@@ -64,12 +64,11 @@ def main():
     if sys.argv[1] == "set":
       pkt = pkt / Raw(data)
     pkt.show2()
-    sendp(pkt, iface=iface, verbose=False)
-    if sys.argv[1] == "get":
-      print "sniffing on %s" % iface
-      sys.stdout.flush()
-      sniff(iface = iface,
-            prn = lambda x: handle_pkt(x, iface))
+    if sys.argv[1] == "set":
+      sendp(pkt, iface=iface, verbose=False)
+    elif sys.argv[1] == "get":
+      response = srp1(pkt, iface=iface, timeout=2)
+      handle_pkt(response, iface)
 
 if __name__ == '__main__':
     main()
