@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import sys
 import struct
+from pprint import pprint
 
 from scapy.all import sniff, sendp, hexdump, get_if_list, get_if_hwaddr, bind_layers
 from scapy.all import Packet, IPOption
@@ -21,17 +22,21 @@ def get_if():
         exit(1)
     return iface
 
-def handle_pkt(pkt):
+def handle_pkt(pkt, iface):
     print "got a packet"
     pkt.show2()
     sys.stdout.flush()
-    if hasattr(pkt, "type") and pkt.type == 0x1313:
+    if hasattr(pkt, "type") and pkt.type == 0x1313 and pkt.vote == 0 :
       if pkt.request_type == 0:
-          pkt[ATOMICCOMMIT].resp = 1
-          pkt = pkt / vals[pkt[ATOMICCOMMIT].key]
+          if pkt.key in vals:
+              pkt = pkt / Raw(vals[pkt.key])
+          else:
+              pkt = pkt / Raw("Error: Could not find key %s" % pkt.key)
+          pkt.vote = 1
           sendp(pkt, iface=iface, verbose=False)
       else:
           vals[pkt.key] = pkt[Raw].load
+          pprint(vals)
     else:
         print "packet was not an AtomicCommit packet. Ignoring..."
 
@@ -40,9 +45,9 @@ class AtomicCommit(Packet):
    fields_desc = [ BitField("request_number", 0, 16),
                    BitField("request_type", 0, 1),
                    BitField("vote",  0, 1),
-                   BitField("resp",  0, 1),
-                   BitField("state", 0, 2),
-                   BitField("key", 0, 11),]
+                   BitField("resp",  0, 2),
+                   BitField("state", 0, 3),
+                   BitField("key", 0, 9),]
 
 
 bind_layers(Ether, AtomicCommit, type=0x1313)
@@ -52,7 +57,7 @@ def main():
     print "sniffing on %s" % iface
     sys.stdout.flush()
     sniff(iface = iface,
-          prn = lambda x: handle_pkt(x))
+          prn = lambda x: handle_pkt(x, iface))
 
 if __name__ == '__main__':
     main()
