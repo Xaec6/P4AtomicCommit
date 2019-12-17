@@ -51,6 +51,7 @@ header myTunnel_t {
 }
 
 header atco_t {
+    bit<9> dest_port;
     // Request Number
     bit<16> req_n;
     // Either a GET or SET request
@@ -61,7 +62,7 @@ header atco_t {
     bit<2>  resp;
     // Various 2PC message types
     bit<3>  msg_type;
-    bit<9>  key;
+    bit<8>  key;
 }
 
 struct metadata {
@@ -163,7 +164,7 @@ control MyIngress(inout headers hdr,
     table atco {
         key = {
             hdr.atco.msg_type: exact;
-            hdr.atco.key: exact;
+            hdr.atco.key: ternary;
         }
         actions = {
             forward;
@@ -179,11 +180,12 @@ control MyIngress(inout headers hdr,
         if (hdr.atco.isValid()) {
             decision = 0;
             standard_metadata.egress_spec = standard_metadata.ingress_port;
-            if(hdr.atco.req_type == REQ_GET){
-                if (hdr.atco.resp == ATCO_CLIENT_REQ) {
-                  forward(2);
-                  hdr.atco.resp = ATCO_PARTICIPANT_REQ;
-                } else if (hdr.atco.resp == ATCO_PARTICIPANT_REQ) {
+            if (hdr.atco.resp == ATCO_CLIENT_REQ) {
+                forward(hdr.atco.dest_port);
+                hdr.atco.resp = ATCO_PARTICIPANT_REQ;
+            } 
+            else if(hdr.atco.req_type == REQ_GET){
+                if (hdr.atco.resp == ATCO_PARTICIPANT_REQ) {
                   forward(1);
                   hdr.atco.resp = ATCO_PARTICIPANT_RESP;
                 } else if (hdr.atco.resp == ATCO_PARTICIPANT_RESP) {

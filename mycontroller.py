@@ -3,6 +3,7 @@ import argparse
 import grpc
 import os
 import sys
+import traceback
 from time import sleep
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'utils/'))
@@ -20,8 +21,10 @@ NUM_PARTICIPANTS = 0x3
 REQ_GET = 0x0
 REQ_SET = 0x1
 
-VOTE_ABORT = 0x0
-VOTE_COMMIT = 0x1
+SHOULD_COMMIT = [0, 0b11110000]
+
+VOTE_COMMIT = 1
+VOTE_ABORT = 0
 
 MSG_REQ = 0x0
 MSG_VOTE_REQ = 0x1
@@ -29,13 +32,13 @@ MSG_VOTE = 0x2
 MSG_DO = 0x3
 
 def addCoordinatorRules(switch):
-    bmv2_switch = switches["s4"]
+    bmv2_switch = switches[switch]
 
     # Add request rule
     table_entry = p4info_helper.buildTableEntry(
         table_name="MyIngress.atco",
         match_fields={
-            "hdr.atco.key": VOTE_COMMIT,
+            "hdr.atco.key": SHOULD_COMMIT,
             "hdr.atco.msg_type": MSG_REQ
         },
 
@@ -43,38 +46,31 @@ def addCoordinatorRules(switch):
         action_params={
             "mc": 1,
             "new_msg_type": MSG_VOTE_REQ
-        })
+        },
+        priority=2)
     bmv2_switch.WriteTableEntry(table_entry)
 
     table_entry = p4info_helper.buildTableEntry(
         table_name="MyIngress.atco",
         match_fields={
-            "hdr.atco.key": VOTE_ABORT,
             "hdr.atco.msg_type": MSG_REQ
         },
 
         action_name="MyIngress.drop",
-        action_params={})
+        action_params={},
+        priority=1)
     bmv2_switch.WriteTableEntry(table_entry)
 
     # Add rule to decide
     table_entry = p4info_helper.buildTableEntry(
         table_name="MyIngress.atco",
         match_fields={
-            "hdr.atco.key": VOTE_COMMIT,
+            "hdr.atco.key": SHOULD_COMMIT,
             "hdr.atco.msg_type": MSG_VOTE
         },
         action_name="MyIngress.decide",
-        action_params={})
-    bmv2_switch.WriteTableEntry(table_entry)
-    table_entry = p4info_helper.buildTableEntry(
-        table_name="MyIngress.atco",
-        match_fields={
-            "hdr.atco.key": VOTE_ABORT,
-            "hdr.atco.msg_type": MSG_VOTE
-        },
-        action_name="MyIngress.decide",
-        action_params={})
+        action_params={},
+        priority=2)
     bmv2_switch.WriteTableEntry(table_entry)
 
 
@@ -86,79 +82,52 @@ def addParticipantRules(switch_lst):
       table_entry = p4info_helper.buildTableEntry(
           table_name="MyIngress.atco",
           match_fields={
-              "hdr.atco.key": VOTE_COMMIT,
+              "hdr.atco.key": SHOULD_COMMIT,
               "hdr.atco.msg_type": MSG_VOTE_REQ
           },
           action_name="MyIngress.vote",
           action_params={
               "v": VOTE_COMMIT
-          })
+          },
+          priority=2)
       bmv2_switch.WriteTableEntry(table_entry)
 
       table_entry = p4info_helper.buildTableEntry(
           table_name="MyIngress.atco",
           match_fields={
-              "hdr.atco.key": VOTE_ABORT,
               "hdr.atco.msg_type": MSG_VOTE_REQ
           },
           action_name="MyIngress.vote",
           action_params={
               "v": VOTE_ABORT
-          })
+          },
+          priority=1)
       bmv2_switch.WriteTableEntry(table_entry)
 
       # Forward decision to host
       table_entry = p4info_helper.buildTableEntry(
           table_name="MyIngress.atco",
           match_fields={
-              "hdr.atco.key": VOTE_COMMIT,
               "hdr.atco.msg_type": MSG_DO
           },
           action_name="MyIngress.forward",
           action_params={
               "port": 1
-          })
-      bmv2_switch.WriteTableEntry(table_entry)
-      table_entry = p4info_helper.buildTableEntry(
-          table_name="MyIngress.atco",
-          match_fields={
-              "hdr.atco.key": VOTE_ABORT,
-              "hdr.atco.msg_type": MSG_DO
           },
-          action_name="MyIngress.forward",
-          action_params={
-              "port": 1
-          })
+          priority=1)
       bmv2_switch.WriteTableEntry(table_entry)
 
-def addClientRules(switch_lst):
-    for switch in switch_lst:
-      bmv2_switch = switches[switch]
-
-      # Add rules to forward requests to coordinator
       table_entry = p4info_helper.buildTableEntry(
           table_name="MyIngress.atco",
           match_fields={
-              "hdr.atco.key": VOTE_COMMIT,
               "hdr.atco.msg_type": MSG_REQ
           },
           action_name="MyIngress.forward",
           action_params={
-            "port": 5
-          })
-      bmv2_switch.WriteTableEntry(table_entry)
-      table_entry = p4info_helper.buildTableEntry(
-          table_name="MyIngress.atco",
-          match_fields={
-              "hdr.atco.key": VOTE_ABORT,
-              "hdr.atco.msg_type": MSG_REQ
+              "port": 4
           },
-          action_name="MyIngress.forward",
-          action_params={
-            "port": 5
-          })
+          priority=1)
       bmv2_switch.WriteTableEntry(table_entry)
-
 
 def addMulticastGroup(switch, mc_group_id, ports):
     reps = list()
@@ -228,16 +197,13 @@ def main(p4info_file_path, bmv2_file_path, topo_file_path):
 
         addCoordinatorRules("s4")
         addParticipantRules(["s1", "s2", "s3"])
-        addClientRules(["s5"])
 
     except KeyboardInterrupt:
         print " Shutting down."
     except grpc.RpcError as e:
         print "gRPC Error:", e.details(),
         status_code = e.code()
-        print "(%s)" % status_code.name,
-        traceback = sys.exc_info()[2]
-        print "[%s:%d]" % (traceback.tb_frame.f_code.co_filename, traceback.tb_lineno)
+        traceback.print_exc()
 
     ShutdownAllSwitchConnections()
 

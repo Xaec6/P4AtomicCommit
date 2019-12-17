@@ -42,12 +42,13 @@ def handle_pkt(pkt, iface):
 
 
 class AtomicCommit(Packet):
-   fields_desc = [ BitField("request_number", 0, 16),
+   fields_desc = [ BitField("dest_port", 0, 9),
+                   BitField("request_number", 0, 16),
                    BitField("request_type", 0, 1),
                    BitField("vote",  0, 1),
                    BitField("resp",  0, 2),
                    BitField("state", 0, 3),
-                   BitField("key", 0, 9),]
+                   BitField("key", 1, 8),]
 
 
 bind_layers(Ether, AtomicCommit, type=0x1313)
